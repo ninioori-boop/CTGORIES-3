@@ -1,40 +1,58 @@
-export default async function handler(req, res) {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+export const config = {
+  runtime: 'edge',
+};
 
+export default async function handler(req) {
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return new Response(null, {
+      status: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      },
+    });
   }
 
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
-  const { text } = req.body;
+  try {
+    const body = await req.json();
+    const { text } = body;
 
-  if (!text) {
-    return res.status(400).json({ error: 'No text provided' });
-  }
+    if (!text) {
+      return new Response(JSON.stringify({ error: 'No text provided' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
-  const API_KEY = process.env.OPENAI_API_KEY;
+    const API_KEY = process.env.OPENAI_API_KEY;
 
-  if (!API_KEY) {
-    return res.status(500).json({ error: 'API key not configured' });
-  }
+    if (!API_KEY) {
+      return new Response(JSON.stringify({ error: 'API key not configured' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
-  const CATEGORIES = [
-    'מזון לבית', 'אוכל בחוץ ובילויים', 'פארם', 'דלק וחניה',
-    'מתנות לאירועים ולשמחות', 'ביגוד והנעלה', 'תחב"צ', 'כבישי אגרה',
-    'תספורת וקוסמטיקה', 'תחביבים', 'סיגריות', 'חופשה/טיול',
-    'עוזרת/שמרטף', 'תיקוני רכב', 'בריאות', 'בעלי חיים',
-    'דמי כיס/ילדים', 'יהדות/חגים', 'שונות', 'ביט ללא מעקב', 'מזומן ללא מעקב'
-  ];
+    const CATEGORIES = [
+      'מזון לבית', 'אוכל בחוץ ובילויים', 'פארם', 'דלק וחניה',
+      'מתנות לאירועים ולשמחות', 'ביגוד והנעלה', 'תחב"צ', 'כבישי אגרה',
+      'תספורת וקוסמטיקה', 'תחביבים', 'סיגריות', 'חופשה/טיול',
+      'עוזרת/שמרטף', 'תיקוני רכב', 'בריאות', 'בעלי חיים',
+      'דמי כיס/ילדים', 'יהדות/חגים', 'שונות', 'ביט ללא מעקב', 'מזומן ללא מעקב'
+    ];
 
-  const categoriesList = CATEGORIES.join(', ');
+    const categoriesList = CATEGORIES.join(', ');
 
-  const prompt = `אתה מומחה בניתוח דוחות הוצאות ישראליים.
+    const prompt = `אתה מומחה בניתוח דוחות הוצאות ישראליים.
 
 להלן טקסט מדוח הוצאות:
 ---
@@ -79,7 +97,6 @@ ${text}
 - התעלם מכותרות וסיכומים
 - סכום חייב להיות מספר חיובי`;
 
-  try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -96,8 +113,11 @@ ${text}
 
     if (!response.ok) {
       const errorData = await response.json();
-      return res.status(response.status).json({ 
+      return new Response(JSON.stringify({ 
         error: errorData.error?.message || 'OpenAI API error' 
+      }), {
+        status: response.status,
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
@@ -107,15 +127,22 @@ ${text}
     // Parse JSON from response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      return res.status(500).json({ error: 'Invalid AI response' });
+      return new Response(JSON.stringify({ error: 'Invalid AI response' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     const result = JSON.parse(jsonMatch[0]);
-    return res.status(200).json(result);
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
 
   } catch (error) {
-    console.error('Error:', error);
-    return res.status(500).json({ error: error.message });
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }
-
